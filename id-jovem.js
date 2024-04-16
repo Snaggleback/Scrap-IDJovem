@@ -36,18 +36,10 @@ export class IDJovem {
             };
         }
 
-        /*  // Calendário, pega a data e pega o horário para o nome do arquivo
-        const calendario = new Date();
-        const dia = calendario.getDate().toString().padStart(2, "0"),
-            mes = (calendario.getMonth() + 1).toString().padStart(2, "0"),
-            ano = calendario.getFullYear().toString().padStart(2, "0"),
-            hora = calendario.getHours().toString().padStart(2, "0"),
-            minuto = calendario.getMinutes().toString().padStart(2, "0"),
-            segundo = calendario.getSeconds().toString().padStart(2, "0");
         // Tira uma screenshot da tela e salva
         await page.screenshot({
-            path: `id-jovem-${dia}-${mes}-${ano}-${hora}-${minuto}-${segundo}.png`,
-        }); */
+            path: `id-jovem-${new Date().getTime()}.png`,
+        });
 
         // Pega os dados desejados que são a validade e o validador
         const infoDesejada = await page.evaluate(() => {
@@ -77,39 +69,50 @@ export class IDJovem {
     }
 
     static async validar({ validador }) {
-        try {
-            const browser = await puppeteer.launch();
-            const page = await browser.newPage();
+        const browser = await puppeteer.launch();
+        const page = await browser.newPage();
 
-            await page.goto("https://idjovem.juventude.gov.br/validarcarteira");
+        await page.goto("https://idjovem.juventude.gov.br/validarcarteira");
 
-            // Preencha o campo do validador
-            await page.type(
-                "#main > div > section > form > div > div.right-side > input[type=text]",
-                validador,
+        // Preencha o campo do validador
+        await page.type(
+            "#main > div > section > form > div > div.right-side > input[type=text]",
+            validador,
+        );
+
+        // Definir o tamanho da página
+        await page.setViewport({
+            width: 1080,
+            height: 1024,
+        });
+
+        page.on("dialog", async (dialog) => {
+            // console.log(dialog.message());
+            await dialog.accept();
+        });
+
+        await page.click(
+            "#main > div > section > form > div > div.right-side > button",
+        );
+        await page.waitForNavigation({
+            waitUntil: "networkidle2",
+        });
+
+        const codigoValidado = await page.evaluate(() => {
+            return (
+                document.querySelector(
+                    "#main > div > section > form > div:nth-child(1) > h1",
+                ) !== null
             );
+        });
 
-            // Definir o tamanho da página
-            await page.setViewport({
-                width: 1080,
-                height: 1024,
-            });
+        await page.screenshot({
+            path: `id-jovem-validation-${new Date().getTime()}.png`,
+        });
 
-            page.on("dialog", async () => {
-                await browser.close(); // Fecha o navegador
-            });
-
-            await page.click(
-                "#main > div > section > form > div > div.right-side > button",
-            );
-            await page.waitForSelector("#main");
-
-            await browser.close();
-            return { status: "É válido o cartão ID Jovem" }; // Se não houver mensagem de diálogo, retorne 'sucesso'
-        } catch (error) {
-            return {
-                status: `Erro ao verificar validador, "${error.message}"`,
-            }; // Em caso de erro, retorne 'falha' com a mensagem de erro
-        }
+        await browser.close();
+        return codigoValidado
+            ? { validador }
+            : { falha: "Validador incorreto" };
     }
 }
